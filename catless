@@ -1,0 +1,53 @@
+#!/usr/bin/gawk -f
+
+#
+# Prints input to standard output if it fits in the terminal window,
+# otherwise opening a pager.
+#
+
+function printpager(str) {
+    printf "%s", str | pager
+}
+
+BEGIN {
+    pager = "${PAGER:-less}"
+
+    # Don't raise fatal error when pager is exited
+    PROCINFO[pager, "NONFATAL"] = 1
+
+    # Get lines and columns in terminal
+    tput = "tput lines cols"
+    tput | getline lines
+    tput | getline cols
+    close(tput)
+
+    # Process the -<N> argument to override lines
+    if (ARGC > 1 && ARGV[1] ~ /^-[0-9]+$/) {
+        lines = ARGV[1]
+        sub(/^-/, "", lines)
+        delete ARGV[1]
+    }
+}
+
+NR <= lines {
+    buf = buf $0 RS
+
+    # Take into account line wrapping
+    lines -= int((length-1)/cols)
+
+    if (NR >= lines) {
+        printpager(buf)
+        buf = ""
+    }
+
+    next
+}
+
+{ printpager($0 RS) }
+
+END {
+    if (buf != "")
+        printf "%s", buf
+
+    close(pager)
+}
